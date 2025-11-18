@@ -5,12 +5,16 @@ import { API_BASE_URL } from '../config';
 const Enrollment = () => {
   const webcamRef = useRef(null);
   const [images, setImages] = useState([]);
-  const [form, setForm] = useState({ name: '', rollNo: '' });
+  const [form, setForm] = useState({ name: '', rollNo: '', batch: '', group: '' });
   const [capturing, setCapturing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [enrolled, setEnrolled] = useState(false);
   const [enrolledStudents, setEnrolledStudents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [webcamError, setWebcamError] = useState(null);
+  const [webcamLoaded, setWebcamLoaded] = useState(false);
+  const [stream, setStream] = useState(null);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     // Fetch enrolled students on component mount
@@ -56,6 +60,53 @@ const Enrollment = () => {
     }
   };
 
+  const downloadStudentsExcel = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        alert('❌ Please login to download student database');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/download-students-excel`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Create blob from response
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Generate filename with current timestamp
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+        a.download = `student_database_${timestamp}.xlsx`;
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        alert('✅ Student database downloaded successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`❌ Failed to download: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error downloading Excel:', error);
+      alert('❌ Error downloading student database. Please try again.');
+    }
+  };
+
   const capture = () => {
     setCapturing(true);
     if (webcamRef.current) {
@@ -92,6 +143,8 @@ const Enrollment = () => {
         body: JSON.stringify({
           name: form.name,
           rollNo: form.rollNo,
+          batch: form.batch,
+          group: form.group,
           images: images
         })
       });
@@ -102,7 +155,7 @@ const Enrollment = () => {
         const result = await response.json();
         setEnrolled(true);
         setImages([]);
-        setForm({ name: '', rollNo: '' });
+        setForm({ name: '', rollNo: '', batch: '', group: '' });
         fetchEnrolledStudents(); // Refresh the list
         
         // Reset enrolled status after 5 seconds
@@ -274,6 +327,71 @@ const Enrollment = () => {
                       }}
                     />
                   </div>
+
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: '8px', 
+                      fontWeight: '500',
+                      color: '#4b5563'
+                    }}>
+                      Batch (Enrollment Year)
+                    </label>
+                    <select 
+                      name="batch" 
+                      value={form.batch} 
+                      onChange={handleChange} 
+                      required
+                      style={{ 
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        fontSize: '16px',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      <option value="">Select Batch</option>
+                      <option value="2020">2020</option>
+                      <option value="2021">2021</option>
+                      <option value="2022">2022</option>
+                      <option value="2023">2023</option>
+                      <option value="2024">2024</option>
+                      <option value="2025">2025</option>
+                      <option value="2026">2026</option>
+                    </select>
+                  </div>
+
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ 
+                      display: 'block', 
+                      marginBottom: '8px', 
+                      fontWeight: '500',
+                      color: '#4b5563'
+                    }}>
+                      Group / Section
+                    </label>
+                    <select 
+                      name="group" 
+                      value={form.group} 
+                      onChange={handleChange} 
+                      required
+                      style={{ 
+                        width: '100%',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        border: '1px solid #e2e8f0',
+                        fontSize: '16px',
+                        backgroundColor: 'white'
+                      }}
+                    >
+                      <option value="">Select Group</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  </div>
                   
                   <div style={{ 
                     marginBottom: '24px',
@@ -310,7 +428,9 @@ const Enrollment = () => {
                       overflow: 'hidden',
                       marginBottom: '16px',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
-                      border: '1px solid #e2e8f0'
+                      border: '2px solid #4361ee',
+                      minHeight: '300px',
+                      backgroundColor: '#f8fafc'
                     }}>
                       <Webcam
                         audio={false}
@@ -320,14 +440,111 @@ const Enrollment = () => {
                         height="auto"
                         videoConstraints={{ 
                           facingMode: 'user',
-                          width: 720,
-                          height: 480
+                          width: 480,
+                          height: 320
                         }}
                         style={{ 
                           display: 'block',
-                          backgroundColor: '#e2e8f0'
+                          backgroundColor: '#e2e8f0',
+                          maxWidth: '400px',
+                          maxHeight: '300px',
+                          margin: '0 auto'
+                        }}
+                        onUserMedia={(stream) => {
+                          console.log('Camera loaded successfully', stream);
+                          setWebcamLoaded(true);
+                          setWebcamError(null);
+                        }}
+                        onUserMediaError={(error) => {
+                          console.error('Camera error:', error);
+                          setWebcamError(`Camera error: ${error.message || 'Access denied'}`);
+                          setWebcamLoaded(false);
                         }}
                       />
+                      
+                      {/* Camera status indicator */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                        padding: '4px 8px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '500',
+                        backgroundColor: webcamLoaded ? 'rgba(16, 185, 129, 0.9)' : 'rgba(239, 68, 68, 0.9)',
+                        color: 'white',
+                        zIndex: 10
+                      }}>
+                        {webcamLoaded ? '🟢 Camera Active' : '🔴 Camera Loading...'}
+                      </div>
+
+                      {/* Loading/Error overlay */}
+                      {!webcamLoaded && !webcamError && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          backgroundColor: 'rgba(0,0,0,0.7)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '16px',
+                          zIndex: 5
+                        }}>
+                          <div style={{ fontSize: '48px', marginBottom: '16px' }}>📹</div>
+                          <div>Loading camera...</div>
+                          <div style={{ fontSize: '12px', marginTop: '8px', opacity: 0.8 }}>
+                            Please allow camera access when prompted
+                          </div>
+                        </div>
+                      )}
+                      
+                      {webcamError && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#dc2626',
+                          fontSize: '14px',
+                          textAlign: 'center',
+                          padding: '20px'
+                        }}>
+                          <div style={{ fontSize: '32px', marginBottom: '10px' }}>📹</div>
+                          <div style={{ fontWeight: '600', marginBottom: '8px' }}>Camera Not Available</div>
+                          <div>{webcamError}</div>
+                          <button
+                            onClick={() => {
+                              setWebcamError(null);
+                              setWebcamLoaded(false);
+                              // Force reload the component
+                              window.location.reload();
+                            }}
+                            style={{
+                              marginTop: '12px',
+                              padding: '8px 16px',
+                              backgroundColor: '#dc2626',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            Retry Camera Access
+                          </button>
+                        </div>
+                      )}
                       {capturing && (
                         <div style={{
                           position: 'absolute',
@@ -354,11 +571,11 @@ const Enrollment = () => {
                     <button 
                       type="button" 
                       onClick={capture} 
-                      disabled={images.length >= 5 || capturing}
+                      disabled={images.length >= 5 || capturing || !webcamLoaded}
                       style={{
                         width: '100%',
                         padding: '12px',
-                        backgroundColor: images.length >= 5 ? '#6b7280' : '#4361ee',
+                        backgroundColor: (images.length >= 5 || !webcamLoaded) ? '#6b7280' : '#4361ee',
                         color: 'white',
                         border: 'none',
                         borderRadius: '8px',
@@ -366,11 +583,16 @@ const Enrollment = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        cursor: images.length >= 5 ? 'not-allowed' : 'pointer'
+                        cursor: (images.length >= 5 || !webcamLoaded) ? 'not-allowed' : 'pointer'
                       }}
                     >
                       {capturing ? (
                         <span>Capturing...</span>
+                      ) : !webcamLoaded ? (
+                        <>
+                          <span style={{ marginRight: '8px' }}>⏳</span>
+                          <span>Waiting for Camera...</span>
+                        </>
                       ) : (
                         <>
                           <span style={{ marginRight: '8px' }}>📸</span>
@@ -499,23 +721,43 @@ const Enrollment = () => {
               }}>
                 👥 Enrolled Students
               </h3>
-              <button 
-                onClick={fetchEnrolledStudents} 
-                style={{
-                  backgroundColor: 'transparent',
-                  color: '#4361ee',
-                  border: 'none',
-                  padding: '6px',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center'
-                }}
-              >
-                <span style={{ marginRight: '4px' }}>🔄</span>
-                Refresh
-              </button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={downloadStudentsExcel} 
+                  style={{
+                    backgroundColor: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    fontWeight: '500'
+                  }}
+                >
+                  <span style={{ marginRight: '6px' }}>📥</span>
+                  Download Excel
+                </button>
+                <button 
+                  onClick={fetchEnrolledStudents} 
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: '#4361ee',
+                    border: 'none',
+                    padding: '6px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span style={{ marginRight: '4px' }}>🔄</span>
+                  Refresh
+                </button>
+              </div>
             </div>
             
             <div style={{ padding: '20px', maxHeight: '480px', overflowY: 'auto' }}>

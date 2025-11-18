@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { API_BASE_URL } from '../config.js';
+import MentorMLRequests from '../components/teacher/MentorMLRequests.jsx';
 
 const TeacherPanel = () => {
   const [lectureNumber, setLectureNumber] = useState('');
@@ -17,14 +18,39 @@ const TeacherPanel = () => {
     activeLectures: 0
   });
 
+  // Teacher assignments state
+  const [teacherAssignments, setTeacherAssignments] = useState(null);
+  const [selectedSubject, setSelectedSubject] = useState('');
+  const [showAttendanceOptions, setShowAttendanceOptions] = useState(false);
+
   useEffect(() => {
     fetchLectures();
     fetchStats();
+    fetchTeacherAssignments();
     
     // Set today's date as default
     const today = new Date().toISOString().split('T')[0];
     setLectureDate(today);
   }, []);
+
+  // Navigation functions for attendance options
+  const goToFaceAttendance = () => {
+    window.location.href = '/attendance';
+  };
+
+  const goToManualAttendance = () => {
+    window.location.href = '/manual-attendance';
+  };
+
+  const goToExcelUpload = () => {
+    window.location.href = '/bulk-attendance';
+  };
+
+  const resetSelection = () => {
+    setShowAttendanceOptions(false);
+    setLectureNumber('');
+    setSelectedSubject('');
+  };
 
   const fetchLectures = async () => {
     try {
@@ -76,34 +102,87 @@ const TeacherPanel = () => {
     }
   };
 
+  const fetchTeacherAssignments = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        console.log('DEBUG: No auth token found');
+        return;
+      }
+
+      const res = await fetch(`${API_BASE_URL}/api/teacher/my-assignments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        console.log('DEBUG: Teacher assignments fetched:', data);
+        setTeacherAssignments(data.assignment);
+        
+        // Auto-select first subject if available
+        if (data.assignment && data.assignment.subjects && data.assignment.subjects.length > 0) {
+          setSelectedSubject(data.assignment.subjects[0]);
+          console.log('DEBUG: Auto-selected subject:', data.assignment.subjects[0]);
+        } else {
+          console.log('DEBUG: No subjects found in assignment');
+        }
+      } else {
+        console.log('DEBUG: Failed to fetch assignments, status:', res.status);
+      }
+    } catch (err) {
+      console.error('Error fetching teacher assignments:', err);
+    }
+  };
+
   const setLecture = async () => {
     if (!lectureNumber || !lectureDate) {
       alert('Please select both lecture number and date');
       return;
     }
 
+    let finalSubject = selectedSubject;
+    
+    // If no subject selected but have assignments, require selection
+    if (teacherAssignments && teacherAssignments.subjects && teacherAssignments.subjects.length > 0 && !selectedSubject) {
+      alert('Please select a subject from your assigned subjects');
+      return;
+    }
+    
+    // If no assignments, use the selected value or default
+    if (!teacherAssignments || !teacherAssignments.subjects || teacherAssignments.subjects.length === 0) {
+      finalSubject = selectedSubject || "General Subject";
+      console.log("No teacher assignments found, using:", finalSubject);
+    }
+
     setLoading(true);
     try {
+      const requestData = { 
+        lectureNumber: parseInt(lectureNumber),
+        date: lectureDate,
+        subject: finalSubject
+      };
+      console.log('DEBUG: Sending lecture data:', requestData);
+      
       const res = await fetch(`${API_BASE_URL}/api/set-lecture`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          lectureNumber: parseInt(lectureNumber),
-          date: lectureDate 
-        })
+        body: JSON.stringify(requestData)
       });
       
       const data = await res.json();
       if (res.ok) {
-        alert(`✅ ${data.message}`);
+        // Store the lecture info in localStorage so attendance pages can use it
         localStorage.setItem('currentLecture', JSON.stringify({
           lectureNumber: parseInt(lectureNumber),
-          date: lectureDate
+          date: lectureDate,
+          subject: finalSubject
         }));
-        setLectureNumber('');
         fetchLectures();
         fetchStats();
-        window.location.href = '/attendance';
+        // Show attendance type options instead of auto-redirecting
+        setShowAttendanceOptions(true);
       } else {
         alert(`❌ ${data.message}`);
       }
@@ -111,6 +190,53 @@ const TeacherPanel = () => {
       alert('❌ Error setting lecture. Please try again.');
     }
     setLoading(false);
+  };
+
+  const downloadStudentsExcel = async () => {
+    try {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        alert('❌ Please login to download student database');
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/download-students-excel`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        // Create blob from response
+        const blob = await response.blob();
+        
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        
+        // Generate filename with current timestamp
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, '');
+        a.download = `student_database_${timestamp}.xlsx`;
+        
+        // Trigger download
+        document.body.appendChild(a);
+        a.click();
+        
+        // Cleanup
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        alert('✅ Student database downloaded successfully!');
+      } else {
+        const errorData = await response.json();
+        alert(`❌ Failed to download: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error downloading Excel:', error);
+      alert('❌ Error downloading student database. Please try again.');
+    }
   };
 
   return (
@@ -145,6 +271,87 @@ const TeacherPanel = () => {
           Teacher Dashboard
         </div>
       </div>
+
+      {/* Teacher Assignment Information */}
+      {teacherAssignments ? (
+        <div style={{
+          backgroundColor: '#f0f9ff',
+          border: '1px solid #bae6fd',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '24px'
+        }}>
+          <h3 style={{
+            margin: '0 0 12px 0',
+            color: '#0369a1',
+            fontSize: '16px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center'
+          }}>
+            <span style={{ marginRight: '8px' }}>📚</span>
+            Your Assigned Subjects - {teacherAssignments.semester}
+          </h3>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px',
+            marginBottom: '12px'
+          }}>
+            {teacherAssignments.subjects.map((subject, index) => (
+              <span
+                key={index}
+                style={{
+                  backgroundColor: selectedSubject === subject ? '#1e40af' : '#e0e7ff',
+                  color: selectedSubject === subject ? 'white' : '#1e40af',
+                  padding: '4px 12px',
+                  borderRadius: '20px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onClick={() => setSelectedSubject(subject)}
+              >
+                {subject}
+              </span>
+            ))}
+          </div>
+          <p style={{
+            margin: '0',
+            color: '#0369a1',
+            fontSize: '14px'
+          }}>
+            Current Subject: <strong>{selectedSubject || 'None selected'}</strong> | 
+            You can only mark attendance for your assigned subjects.
+          </p>
+        </div>
+      ) : (
+        <div style={{
+          backgroundColor: '#fef3c7',
+          border: '1px solid #fbbf24',
+          borderRadius: '8px',
+          padding: '16px',
+          marginBottom: '24px'
+        }}>
+          <h3 style={{
+            margin: '0 0 8px 0',
+            color: '#d97706',
+            fontSize: '16px',
+            fontWeight: '600'
+          }}>
+            <span style={{ marginRight: '8px' }}>⚠️</span>
+            No Subjects Assigned
+          </h3>
+          <p style={{
+            margin: '0',
+            color: '#92400e',
+            fontSize: '14px'
+          }}>
+            Please contact your administrator to assign subjects and semester before you can mark attendance.
+          </p>
+        </div>
+      )}
       
       {/* Manual Attendance Feature Banner */}
       <div style={{
@@ -363,6 +570,26 @@ const TeacherPanel = () => {
           }}>
             Enrolled Students
           </p>
+          <button
+            onClick={downloadStudentsExcel}
+            style={{
+              marginTop: '12px',
+              backgroundColor: '#10b981',
+              color: 'white',
+              border: 'none',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              fontWeight: '500'
+            }}
+          >
+            <span>📥</span>
+            Download Database
+          </button>
         </div>
       </div>
       
@@ -439,7 +666,7 @@ const TeacherPanel = () => {
                   </select>
                 </div>
                 
-                <div style={{ marginBottom: '24px' }}>
+                <div style={{ marginBottom: '16px' }}>
                   <label style={{
                     display: 'block',
                     marginBottom: '8px',
@@ -464,13 +691,74 @@ const TeacherPanel = () => {
                     }}
                   />
                 </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label style={{
+                    display: 'block',
+                    marginBottom: '8px',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    color: '#4b5563'
+                  }}>
+                    Select Subject <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  
+                  {/* Always show the subject dropdown */}
+                  <select
+                    value={selectedSubject}
+                    onChange={(e) => setSelectedSubject(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb',
+                      backgroundColor: 'white',
+                      fontSize: '16px',
+                      color: '#1f2937'
+                    }}
+                  >
+                    <option value="">Choose a subject...</option>
+                    {teacherAssignments && teacherAssignments.subjects && teacherAssignments.subjects.length > 0 ? (
+                      teacherAssignments.subjects.map((subject, index) => (
+                        <option key={index} value={subject}>{subject}</option>
+                      ))
+                    ) : (
+                      <option value="General Subject">General Subject (No assignments)</option>
+                    )}
+                  </select>
+                  
+                  {/* Show assignment status below dropdown */}
+                  {teacherAssignments && teacherAssignments.subjects && teacherAssignments.subjects.length > 0 ? (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#ecfdf5',
+                      color: '#047857',
+                      fontSize: '12px'
+                    }}>
+                      ✅ {teacherAssignments.subjects.length} subjects assigned
+                    </div>
+                  ) : (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '8px',
+                      borderRadius: '4px',
+                      backgroundColor: '#fef3c7',
+                      color: '#92400e',
+                      fontSize: '12px'
+                    }}>
+                      ⚠️ No subjects assigned. Contact administrator to assign subjects.
+                    </div>
+                  )}
+                </div>
                 
                 <button
                   onClick={setLecture}
-                  disabled={loading || !lectureNumber || !lectureDate}
+                  disabled={loading || !lectureNumber || !lectureDate || !selectedSubject}
                   style={{
                     width: '100%',
-                    backgroundColor: loading || !lectureNumber || !lectureDate ? '#6b7280' : '#10b981',
+                    backgroundColor: loading || !lectureNumber || !lectureDate || !selectedSubject ? '#6b7280' : '#10b981',
                     color: 'white',
                     border: 'none',
                     borderRadius: '8px',
@@ -522,6 +810,147 @@ const TeacherPanel = () => {
             </div>
           </div>
         </div>
+        
+        {/* Attendance Options Modal */}
+        {showAttendanceOptions && (
+          <div className="card" style={{ 
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+            overflow: 'hidden',
+            marginBottom: '24px'
+          }}>
+            <div style={{
+              backgroundColor: '#f0fdf4',
+              borderRadius: '12px',
+              padding: '24px',
+              marginBottom: '0px',
+              border: '1px solid #bbf7d0'
+            }}>
+              <div style={{
+                textAlign: 'center',
+                marginBottom: '20px'
+              }}>
+                <h4 style={{
+                  margin: '0 0 8px 0',
+                  fontSize: '18px',
+                  color: '#047857'
+                }}>
+                  ✅ Lecture {lectureNumber} - {lectureDate}
+                </h4>
+                <p style={{
+                  margin: '0',
+                  fontSize: '14px',
+                  color: '#059669'
+                }}>
+                  Subject: {selectedSubject} - Lecture setup complete! Choose attendance method:
+                </p>
+              </div>
+              
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                gap: '12px',
+                marginBottom: '16px'
+              }} className="attendance-options-grid">
+                <button
+                  onClick={goToFaceAttendance}
+                  className="attendance-option-btn"
+                  style={{
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '16px 12px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                    minHeight: '70px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>📱</span>
+                  <span>Face Recognition</span>
+                </button>
+                
+                <button
+                  onClick={goToManualAttendance}
+                  className="attendance-option-btn"
+                  style={{
+                    backgroundColor: '#e11d48',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '16px 12px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                    minHeight: '70px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>✏️</span>
+                  <span>Manual Entry</span>
+                </button>
+
+                <button
+                  onClick={goToExcelUpload}
+                  className="attendance-option-btn"
+                  style={{
+                    backgroundColor: '#7c3aed',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '16px 12px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease',
+                    minHeight: '70px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>📁</span>
+                  <span>Excel Upload</span>
+                </button>
+              </div>
+              
+              <button
+                onClick={resetSelection}
+                style={{
+                  width: '100%',
+                  backgroundColor: '#6b7280',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer'
+                }}
+              >
+                Reset Selection
+              </button>
+            </div>
+          </div>
+        )}
         
         {/* Lecture History Card */}
         <div className="card" style={{ 
@@ -849,6 +1278,70 @@ const TeacherPanel = () => {
           </div>
           
           <div style={{
+            backgroundColor: '#f0fdf4',
+            borderRadius: '8px',
+            padding: '16px',
+            border: '1px solid #bbf7d0'
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              marginBottom: '12px'
+            }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                backgroundColor: '#f0fdf4',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#15803d',
+                fontSize: '16px',
+                fontWeight: '600'
+              }}>
+                5
+              </div>
+              <h4 style={{
+                margin: '0',
+                fontSize: '16px',
+                color: '#15803d'
+              }}>
+                Download Student Database
+              </h4>
+            </div>
+            
+            <p style={{
+              margin: '0 0 12px 0',
+              fontSize: '14px',
+              color: '#15803d'
+            }}>
+              Download the complete student database as an Excel file containing names and roll numbers for record keeping.
+            </p>
+            
+            <button
+              onClick={downloadStudentsExcel}
+              style={{
+                backgroundColor: '#15803d',
+                color: 'white',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '6px',
+                fontSize: '14px',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: '500'
+              }}
+            >
+              <span>📥</span>
+              Download Student Database (Excel)
+            </button>
+          </div>
+          
+          <div style={{
             backgroundColor: '#fef2f2',
             borderRadius: '8px',
             padding: '16px',
@@ -872,7 +1365,7 @@ const TeacherPanel = () => {
                 fontSize: '16px',
                 fontWeight: '600'
               }}>
-                5
+                6
               </div>
               <h4 style={{
                 margin: '0',
@@ -934,7 +1427,7 @@ const TeacherPanel = () => {
               fontSize: '16px',
               fontWeight: '600'
             }}>
-              5
+              7
             </div>
             <h4 style={{
               margin: '0',
@@ -967,6 +1460,50 @@ const TeacherPanel = () => {
             Upload Excel File
           </Link>
         </div>
+
+      {/* Medical Leave Requests Section - For Mentors Only */}
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: '12px',
+        padding: '24px',
+        marginTop: '32px',
+        boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+        border: '2px solid #fbbf24'
+      }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '20px',
+          paddingBottom: '16px',
+          borderBottom: '2px solid #fef3c7'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontSize: '20px',
+            fontWeight: 'bold'
+          }}>
+            🏥
+          </div>
+          <h3 style={{
+            margin: '0',
+            fontSize: '20px',
+            fontWeight: 'bold',
+            color: '#92400e'
+          }}>
+            Medical Leave Requests (Mentor)
+          </h3>
+        </div>
+        
+        <MentorMLRequests />
+      </div>
     </div>
   );
 };

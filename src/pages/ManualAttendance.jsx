@@ -667,21 +667,22 @@ const ManualAttendance = () => {
             margin: 0, 
             paddingLeft: '24px',
             color: '#0369a1',
-            fontSize: '14px'
+            fontSize: '14px',
+            textAlign: 'left'
           }}>
-            <li style={{ marginBottom: '8px' }}>
+            <li style={{ marginBottom: '8px', textAlign: 'left' }}>
               Select the lecture number and date
             </li>
-            <li style={{ marginBottom: '8px' }}>
+            <li style={{ marginBottom: '8px', textAlign: 'left' }}>
               Click "Load Students" to view all enrolled students with their current attendance status
             </li>
-            <li style={{ marginBottom: '8px' }}>
+            <li style={{ marginBottom: '8px', textAlign: 'left' }}>
               Mark each student as Present, Absent, or Late
             </li>
-            <li style={{ marginBottom: '8px' }}>
+            <li style={{ marginBottom: '8px', textAlign: 'left' }}>
               Use "Mark All" buttons to quickly set all students to the same status
             </li>
-            <li>
+            <li style={{ textAlign: 'left' }}>
               Click "Save Attendance" to submit the manual attendance records
             </li>
           </ol>

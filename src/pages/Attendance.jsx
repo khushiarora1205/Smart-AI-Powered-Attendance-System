@@ -271,14 +271,26 @@ const Attendance = () => {
                       }}>
                         {currentLecture.lectureNumber}
                       </div>
-                      <h4 style={{
-                        margin: '0',
-                        fontSize: '16px',
-                        fontWeight: '600',
-                        color: '#047857'
-                      }}>
-                        Lecture {currentLecture.lectureNumber}
-                      </h4>
+                      <div>
+                        <h4 style={{
+                          margin: '0 0 4px 0',
+                          fontSize: '16px',
+                          fontWeight: '600',
+                          color: '#047857'
+                        }}>
+                          Lecture {currentLecture.lectureNumber}
+                        </h4>
+                        {currentLecture.subject && (
+                          <p style={{
+                            margin: '0',
+                            fontSize: '14px',
+                            color: '#059669',
+                            fontWeight: '500'
+                          }}>
+                            📚 {currentLecture.subject}
+                          </p>
+                        )}
+                      </div>
                     </div>
                     
                     <div style={{
@@ -383,12 +395,15 @@ const Attendance = () => {
                   height="auto"
                   videoConstraints={{ 
                     facingMode: 'user',
-                    width: 720,
-                    height: 480
+                    width: 480,
+                    height: 320
                   }}
                   style={{ 
                     display: 'block',
-                    backgroundColor: '#e2e8f0'
+                    backgroundColor: '#e2e8f0',
+                    maxWidth: '400px',
+                    maxHeight: '300px',
+                    margin: '0 auto'
                   }}
                 />
                 

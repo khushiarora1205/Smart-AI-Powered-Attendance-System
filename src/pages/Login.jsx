@@ -10,19 +10,19 @@ const Login = ({ onLogin }) => {
   const handleManualLogin = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const email = formData.get('email');
+    const username = formData.get('username');
     const password = formData.get('password');
 
     setIsLoading(true);
     setError('');
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/login`, {
+      const res = await fetch(`${API_BASE_URL}/api/teacher/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ username, password })
       });
 
       const data = await res.json();
@@ -175,13 +175,12 @@ const Login = ({ onLogin }) => {
               color: 'rgba(255, 255, 255, 0.9)',
               marginBottom: '8px'
             }}>
-              Email Address
+              Username
             </label>
             <input
-              type="email"
-              name="email"
+              type="text"
+              name="username"
               required
-              defaultValue="teacher@faceattend.com"
               style={{
                 width: '100%',
                 padding: '14px 16px',
@@ -202,7 +201,7 @@ const Login = ({ onLogin }) => {
                 e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)';
                 e.target.style.boxShadow = 'none';
               }}
-              placeholder="Enter your email"
+              placeholder="Enter your username"
             />
           </div>
 
@@ -220,7 +219,6 @@ const Login = ({ onLogin }) => {
               type="password"
               name="password"
               required
-              defaultValue="teacher123"
               style={{
                 width: '100%',
                 padding: '14px 16px',
@@ -282,7 +280,7 @@ const Login = ({ onLogin }) => {
           </button>
         </form>
 
-        {/* Demo Credentials */}
+        {/* Login Instructions */}
         <div style={{
           marginTop: '25px',
           padding: '16px',
@@ -303,7 +301,7 @@ const Login = ({ onLogin }) => {
               fontWeight: '600',
               color: 'rgba(255, 255, 255, 0.9)'
             }}>
-              Demo Credentials
+              Teacher Login
             </span>
           </div>
           <div style={{
@@ -312,9 +310,32 @@ const Login = ({ onLogin }) => {
             textAlign: 'center',
             lineHeight: '1.4'
           }}>
-            <div><strong>Email:</strong> teacher@faceattend.com</div>
-            <div><strong>Password:</strong> teacher123</div>
+            <div>Use your username and password provided by the administrator</div>
+            <div>Check your email for login credentials</div>
           </div>
+        </div>
+
+        {/* Navigation Link */}
+        <div style={{
+          textAlign: 'center',
+          marginTop: '20px'
+        }}>
+          <button
+            onClick={() => navigate('/admin-login')}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'rgba(255, 255, 255, 0.7)',
+              fontSize: '14px',
+              cursor: 'pointer',
+              textDecoration: 'underline',
+              transition: 'color 0.3s ease'
+            }}
+            onMouseOver={(e) => e.target.style.color = 'white'}
+            onMouseOut={(e) => e.target.style.color = 'rgba(255, 255, 255, 0.7)'}
+          >
+            👑 Admin Login →
+          </button>
         </div>
 
         {/* Footer */}
@@ -325,7 +346,7 @@ const Login = ({ onLogin }) => {
           color: 'rgba(255, 255, 255, 0.6)'
         }}>
           <p style={{ margin: '5px 0' }}>
-            For teachers and administrators only
+            Smart AI-Powered Attendance System
           </p>
           <p style={{ margin: '5px 0' }}>
             Final Year Project v1.0.0
