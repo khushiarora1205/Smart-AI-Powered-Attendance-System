@@ -46,7 +46,7 @@ def missing_token_callback(error):
     return jsonify({"error": "Missing token", "message": "Authorization token required"}), 401
 
 # MongoDB connection
-MONGO_URI = "mongodb+srv://flask_user:keshavjulka%40123@flask-cluster.rstc7gw.mongodb.net/attendance_system?retryWrites=true&w=majority&appName=flask-cluster"
+MONGO_URI = ""
 client = MongoClient(MONGO_URI)
 db = client['attendance_system']
 students_col = db['students']
@@ -127,10 +127,10 @@ def send_teacher_credentials_email(teacher_name, username, password, email, depa
         # QUICK WORKING EMAIL SOLUTION - Using Gmail with Less Secure Apps
         # Note: This is for testing only. For production, use App Passwords.
         
-        sender_email = "karanjulka2512@gmail.com"
-        sender_password = "mdaw pumn vupx zxdg"
+        sender_email = ""
+        sender_password = ""
         smtp_server = "smtp.gmail.com"
-        smtp_port = 587
+        smtp_port = 
         
         # Alternative: Use Outlook (often easier)
         # sender_email = "your_email@outlook.com"
@@ -3814,4 +3814,5 @@ def download_ml_proof(filename):
 # ============== END MEDICAL LEAVE ENDPOINTS ==============
 
 if __name__ == '__main__':
+
     app.run(debug=True, host='127.0.0.1', port=5001)
